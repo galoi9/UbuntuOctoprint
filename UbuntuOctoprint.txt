@@ -153,26 +153,3 @@ backend webcam
 
 
 
-
-
-
-
-
-
-
-
-
-#install Klipper
-git clone https://github.com/Klipper3d/klipper
-./klipper/scripts/install-ubuntu-18.04.sh
-cd ~/klipper/
-## the following is for Ender 3 v2 , substitute for your printer
-cp ~/klipper/config/printer-creality-ender3-v2-2020.cfg ~/printer.cfg
-
-
-#install the octoKlipper plugin
-
-#Plugin the cable to the printer & the priyner is on
-ls /dev/serial/by-id/*
-Copy the result and edit the config file in octoprint
-Perform a complete resboot
