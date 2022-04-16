@@ -1,0 +1,178 @@
+#!/bin/sh
+
+#Install SSH Server
+sudo apt install openssh-server
+
+
+
+#Create user pi
+sudo adduser pi
+sudo adduser pi sudo
+sudo su pi
+whoami
+
+
+#create the following files
+sudo visudo -f /etc/sudoers.d/010_proxy
+Defaults env_keep += "http_proxy HTTP_PROXY"
+Defaults env_keep += "https_proxy HTTPS_PROXY"
+Defaults env_keep += "ftp_proxy FTP_PROXY"
+Defaults env_keep += "RSYNC_PROXY"
+Defaults env_keep += "no_proxy NO_PROXY"
+
+sudo visudo -f /etc/sudoers.d/octoprint-service
+pi ALL=NOPASSWD: /usr/sbin/service
+
+sudo visudo -f /etc/sudoers.d/octoprint-shutdown
+pi ALL=NOPASSWD: /sbin/shutdown
+
+sudo visudo -f /etc/sudoers.d/010_pi-nopasswd
+#pi ALL=(ALL) NOPASSWD: ALL
+
+sudo visudo -f /etc/sudoers.d/010_at-export
+Defaults env_keep += "NO_AT_BRIDGE"
+
+#Login as user pi
+#Install Octoprint
+cd ~
+sudo apt update
+sudo apt install python3-pip python3-dev python3-setuptools python3-venv git libyaml-dev build-essential
+mkdir OctoPrint && cd OctoPrint
+python3 -m venv venv
+source venv/bin/activate
+pip install pip --upgrade
+pip install --no-cache-dir octoprint
+sudo usermod -a -G tty pi
+sudo usermod -a -G dialout pi
+
+
+
+wget https://github.com/OctoPrint/OctoPrint/raw/master/scripts/octoprint.service && sudo mv octoprint.service /etc/systemd/system/octoprint.service
+ExecStart=/home/pi/OctoPrint/venv/bin/octoprint
+systemctl enable octoprint.service (authenticate twice)
+systemctl start octoprint.service
+~/OctoPrint/venv/bin/octoprint serve
+
+
+#test access to video0 (device must be plugged in)
+sudo apt-get install v4l-utils
+v4l2-ctl --list-devices
+#If permissions error
+sudo chmod 777 /dev/video0
+
+#Install the mjpg Streamer
+cd ~
+sudo apt-get install cmake
+sudo apt-get install libjpeg-dev
+git clone https://github.com/jacksonliam/mjpg-streamer.git
+cd mjpg-streamer/mjpg-streamer-experimental
+make
+sudo make install
+sudo nano /etc/systemd/system/mjpg-streamer.service
+[Unit]
+Description=Run mjpg-streamer
+
+[Service]
+Type=simple
+ExecStart=/home/pi/mjpg-streamer/mjpg-streamer-experimental/mjpg_streamer -i "/home/pi/mjpg-streamer/mjpg-streamer-experimental/input_uvc.so" -o "/home/pi/mjpg-streamer/mjpg-streamer-experimental/output_http.so -p 5001"
+
+[Install]
+WantedBy=multi-user.target
+
+sudo systemctl daemon-reload
+sudo systemctl start mjpg-streamer
+sudo systemctl status mjpg-streamer
+sudo systemctl enable mjpg-streamer
+
+#install ffmpeg
+sudo apt install ffmpeg
+
+
+#Install the "bonjuor" server for linux
+sudo apt update && sudo apt install avahi-daemon
+sudo systemctl start avahi-daemon
+sudo systemctl enable avahi-daemon
+
+#Install haproxy
+sudo apt install haproxy
+sudo cp /etc/haproxy/haproxy.cfg to /etc/haproxy/haproxy.old
+
+sudo systemctl start haproxy.service
+sudo systemctl status haproxy.service
+sudo systemctl enable haproxy.service
+sudo nano /etc/haproxy.cfg
+_____________________________________________________
+global
+        maxconn 4096
+        user haproxy
+        group haproxy
+        daemon
+        log 127.0.0.1 local0 debug
+
+defaults
+        log     global
+        mode    http
+        option  httplog
+        option  dontlognull
+        retries 3
+        option redispatch
+        option http-server-close
+        option forwardfor
+        maxconn 2000
+        timeout connect 5s
+        timeout client  15min
+        timeout server  15min
+
+frontend public
+        bind *:80
+        use_backend webcam if { path_beg /webcam/ }
+        default_backend octoprint
+
+backend octoprint
+        option forwardfor
+        server octoprint1 127.0.0.1:5000
+
+backend webcam
+        reqrep ^([^\ :]*)\ /webcam/(.*)     \1\ /\2
+        server webcam1  127.0.0.1:8080
+		
+		_______________________________________________________
+		
+		
+
+
+
+#Loginto your octoprint
+#stream URL =  http://<your ip/hostname>:5001/?action=stream_0
+#Snapshot URL = http://localhost:5001/?action=snapshot
+#path to ffmpg = /usr/bin/ffmpeg
+#Restart Octoprint commands= sudo service octoprint restart
+#Restart System = sudo shutdown -r now
+#Shutdown system = sudo shutdown -h now
+
+
+
+
+
+
+
+
+
+
+
+
+
+#install Klipper
+git clone https://github.com/Klipper3d/klipper
+./klipper/scripts/install-ubuntu-18.04.sh
+cd ~/klipper/
+## the following is for Ender 3 v2 , substitute for your printer
+cp ~/klipper/config/printer-creality-ender3-v2-2020.cfg ~/printer.cfg
+
+
+#install the octoKlipper plugin
+
+#Plugin the cable to the printer & the priyner is on
+ls /dev/serial/by-id/*
+Copy the result and edit the config file in octoprint
+Perform a complete resboot
